@@ -1,3 +1,5 @@
 .env
 datasets
 locales
+locale_comparison
+.direnv
