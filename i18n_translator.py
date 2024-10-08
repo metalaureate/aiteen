@@ -80,6 +80,7 @@ def gpt_translate(translation_list, locale):
     Merge Mining: Refers to mining two different cryptocurrencies simultaneously with the same resources.
     Referral Program: Refers to a program where users invite friends and earn rewards for their participation.
     Visual Mode: Refers to a display mode that changes how information is shown visually in the interface.
+    Tor: Refers to The Onion Router, a privacy-focused network for anonymous communication.
 
     Instructions:
     Do not translate technical terms like GPU, CPU, hash rate, or product names like Tari Universe. 
