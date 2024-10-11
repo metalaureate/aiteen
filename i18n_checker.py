@@ -38,13 +38,23 @@ def load_en_keys(en_json_files):
         all_keys.update(extract_keys(en_data, json_file_name))
     return all_keys
 
-# Function to compare the English keys with other locale keys, including subkeys
+# Function to compare the English keys with other locale keys, considering identical values as missing
 def compare_keys(en_data, other_locale_data):
-    en_keys = extract_keys(en_data)  # Extract nested keys from the English data
-    other_keys = extract_keys(other_locale_data)  # Extract nested keys from the locale data
+    # Extract nested keys from the English data
+    en_keys = extract_keys(en_data, "en.json")  # Provide a placeholder for json_file
+    # Extract nested keys from the locale data
+    other_keys = extract_keys(other_locale_data, "locale.json")  # Provide a placeholder for json_file
 
-    missing_keys = en_keys.keys() - other_keys.keys()
-    extraneous_keys = other_keys.keys() - en_keys.keys()
+    # Find keys that are missing or have the same value as in English
+    missing_keys = {
+        key for key, (file, en_value) in en_keys.items()
+        if key not in other_keys or other_keys[key][1] == en_value
+    }
+
+    # Find extraneous keys that are present in the locale but not in English
+    extraneous_keys = {
+        key for key in other_keys.keys() - en_keys.keys()
+    }
 
     return missing_keys, extraneous_keys
 
@@ -119,6 +129,7 @@ def compare_keys_in_locales(base_path, en_path, output_dir):
 
     comparison_data = {}
     other_locales = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d)) and d != 'en']
+    print(f"Comparing English keys with {len(other_locales)} other locales.")
 
     for locale in other_locales:
         locale_path = os.path.join(base_path, locale)
@@ -130,13 +141,8 @@ def compare_keys_in_locales(base_path, en_path, output_dir):
             locale_json_data, json_file = load_json(locale_file)
             locale_data.update(extract_keys(locale_json_data, json_file))  # Track file with key
 
-        # Debugging: Print out the fully extracted keys to check correctness
-        print(f"English Keys: {all_en_data}")
-        print(f"Locale Keys for {locale}: {locale_data}")
-
-        # Compare the fully unpacked keys
-        missing_keys = all_en_data.keys() - locale_data.keys()
-        extraneous_keys = locale_data.keys() - all_en_data.keys()
+        # Compare the fully unpacked keys, treating identical values as missing
+        missing_keys, extraneous_keys = compare_keys(all_en_data, locale_data)
 
         # Associate missing/extraneous keys with their respective JSON files
         missing_keys_with_file = [(key, all_en_data[key]) for key in missing_keys]

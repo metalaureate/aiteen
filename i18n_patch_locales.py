@@ -1,4 +1,5 @@
 import os
+import shutil
 import pandas as pd
 import json
 import re
@@ -6,7 +7,9 @@ import math
 
 # Paths to locales and CSV file
 csv_file_path = 'locale_comparison/translated_locale_key_comparison_consolidated.csv'
-locale_dir_path = 'locales'  # The directory where locale JSON files are stored
+locale_dir_path = 'locales'  # The directory where locale JSON files will be patched
+source_locale_dir_path = '/Users/possum/Projects/tari/universe/public/locales'  # The directory where the source locale JSON files are located
+en_locale_dir_path = 'locales/en'  # Path to the English locale for reference
 
 def load_csv(file_path):
     """Load the CSV file and return it as a DataFrame."""
@@ -29,77 +32,110 @@ def create_directory_if_missing(directory_path):
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
 
+def copy_source_locales():
+    """Copy all locale files from the source repository to the target locale directory."""
+    if os.path.exists(source_locale_dir_path):
+        shutil.copytree(source_locale_dir_path, locale_dir_path, dirs_exist_ok=True)
+        print(f"Copied source locales from {source_locale_dir_path} to {locale_dir_path}")
+    else:
+        print(f"Source locale directory {source_locale_dir_path} does not exist.")
+
+def find_json_files(base_directory):
+    """Recursively find all JSON files in the specified directory."""
+    json_files = []
+    for root, _, files in os.walk(base_directory):
+        for file in files:
+            if file.endswith(".json"):
+                json_files.append(os.path.join(root, file))
+    return json_files
+
 def update_nested_dict(d, keys, value):
     """Update a nested dictionary given a list of keys."""
     for key in keys[:-1]:
-        # If the current key exists but is a string, convert it to a dictionary
         if key in d and isinstance(d[key], str):
-            d[key] = {}  # Replace the string with an empty dictionary
-        d = d.setdefault(key, {})  # Move deeper into the dictionary, create if not exists
-    d[keys[-1]] = value  # Set the final key to the translated value
+            d[key] = {}
+        d = d.setdefault(key, {})
+    d[keys[-1]] = value
 
 def convert_to_valid_json(value):
-    """Attempt to convert a string with single quotes to valid JSON."""
+    """Convert a string with single quotes to valid JSON."""
     if isinstance(value, str):
-        # Replace single quotes with double quotes
-        # Also, ensure that True, False, and None are converted to their JSON equivalents
-        value = re.sub(r"'", '"', value)  # Replace single quotes with double quotes
+        value = re.sub(r"'", '"', value)
         value = value.replace('True', 'true').replace('False', 'false').replace('None', 'null')
-    
     try:
-        # Attempt to load the string as a JSON object
         return json.loads(value)
     except (ValueError, TypeError):
-        # If it fails, return the original value (likely a plain string)
         return value
 
 def handle_invalid_value(value):
-    """Check for invalid values like NaN and replace with None (which becomes null in JSON)."""
+    """Replace NaN with None."""
     if isinstance(value, float) and math.isnan(value):
-        return None  # Return None for NaN values
+        return None
     return value
 
 def update_locale_json(locale, json_file, label_key, translated_value):
     """Update a JSON file with the new translation."""
-    # Construct the path to the locale's JSON file
     locale_folder_path = os.path.join(locale_dir_path, locale)
     locale_json_path = os.path.join(locale_folder_path, json_file)
 
-    # Ensure the locale folder exists
     create_directory_if_missing(locale_folder_path)
-
-    # Load the existing JSON data (if the file exists)
     json_data = load_json(locale_json_path)
 
-    # Handle nested keys (e.g., 'tabs.general')
-    keys = label_key.split('.')  # Split label_key by '.' to handle nested keys
-
-    # Ensure the translated value is in valid JSON format
+    keys = label_key.split('.')
     translated_value = convert_to_valid_json(translated_value)
-
-    # Handle NaN values and replace them with None
     translated_value = handle_invalid_value(translated_value)
 
-    # Update the JSON data with the new translation
     update_nested_dict(json_data, keys, translated_value)
-
-    # Save the updated JSON file
     save_json(locale_json_path, json_data)
 
+def ensure_all_keys_present(locale, all_en_keys):
+    """Ensure that all English keys are present in the locale JSON files."""
+    locale_folder_path = os.path.join(locale_dir_path, locale)
+    create_directory_if_missing(locale_folder_path)
+
+    for json_file, keys in all_en_keys.items():
+        locale_json_path = os.path.join(locale_folder_path, json_file)
+        json_data = load_json(locale_json_path)
+
+        for label_key, en_value in keys.items():
+            if label_key not in json_data:
+                update_nested_dict(json_data, label_key.split('.'), en_value)
+        save_json(locale_json_path, json_data)
+
+def load_all_en_keys():
+    """Load all English keys to ensure consistency across locales."""
+    all_en_keys = {}
+
+    for json_file in find_json_files(en_locale_dir_path):
+        file_basename = os.path.basename(json_file)
+        en_data = load_json(json_file)
+        all_en_keys[file_basename] = en_data
+
+    return all_en_keys
+
 def main():
-    # Load the translation CSV
+    # Step 1: Copy the source locales to the target directory
+    copy_source_locales()
+
+    # Step 2: Load all English keys to use as a reference
+    all_en_keys = load_all_en_keys()
+
+    # Step 3: Ensure all locales have the necessary keys from English as a baseline
+    for locale in os.listdir(locale_dir_path):
+        if os.path.isdir(os.path.join(locale_dir_path, locale)) and locale != 'en':
+            ensure_all_keys_present(locale, all_en_keys)
+
+    # Step 4: Load the translation CSV
     df = load_csv(csv_file_path)
 
-    # Iterate over each row in the CSV
+    # Step 5: Patch the locale files with the translated values
     for _, row in df.iterrows():
         locale = row['locale']
         json_file = row['json_file']
         label_key = row['label_key']
         translated_value = row['translated_value']
 
-        # Only update if translated_value is not NaN or empty
         if pd.notna(translated_value) and translated_value.strip() != "":
-            # Update the locale's JSON file with the translated value
             print(f"Updating {locale}/{json_file}: {label_key} -> {translated_value}")
             update_locale_json(locale, json_file, label_key, translated_value)
 
