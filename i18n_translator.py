@@ -104,7 +104,7 @@ def gpt_translate(translation_list, locale):
                 {"role": "user", "content": json.dumps(translation_input)}
             ],
             temperature=0,
-            timeout=60,
+            timeout=120,
         )
            # Print the raw response for debugging
         raw_result = response.choices[0].message.content
