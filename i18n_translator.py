@@ -3,12 +3,18 @@ import os
 import traceback
 from openai import OpenAI, OpenAIError
 import json
+import argparse
 from dotenv import load_dotenv
 load_dotenv()
 
-# Load the CSV files
-english_labels_path = 'locale_comparison/english_labels.csv'
-locale_key_comparison_path = 'locale_comparison/locale_key_comparison_consolidated.csv'
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Translate missing locale strings using OpenAI.')
+    parser.add_argument('--input-dir', default='locale_comparison',
+                       help='Input directory containing comparison CSV files (default: locale_comparison)')
+    parser.add_argument('--output-dir', default='locale_comparison',
+                       help='Output directory for translated CSV files (default: locale_comparison)')
+    return parser.parse_args()
 
 def load_csv_files(english_path, locale_comparison_path):
     english_labels_df = pd.read_csv(english_path)
@@ -211,6 +217,14 @@ def save_updated_df(df, output_path):
 
 # Main function to run the process
 def main():
+    # Parse command line arguments
+    args = parse_arguments()
+    
+    # Set up paths from arguments
+    english_labels_path = os.path.join(args.input_dir, 'english_labels.csv')
+    locale_key_comparison_path = os.path.join(args.input_dir, 'locale_key_comparison_consolidated.csv')
+    output_path = os.path.join(args.output_dir, 'translated_locale_key_comparison_consolidated.csv')
+    
     english_labels_df, locale_key_comparison_df = load_csv_files(english_labels_path, locale_key_comparison_path)
     
     # Process the missing translations
@@ -220,7 +234,6 @@ def main():
     updated_locale_key_comparison_df = update_translations_in_dataframe(translations, locale_key_comparison_df)
     
     # Save the updated DataFrame
-    output_path = 'locale_comparison/translated_locale_key_comparison_consolidated.csv'
     save_updated_df(updated_locale_key_comparison_df, output_path)
 
 if __name__ == "__main__":

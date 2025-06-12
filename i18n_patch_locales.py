@@ -4,12 +4,20 @@ import pandas as pd
 import json
 import re
 import math
+import argparse
 
-# Paths to locales and CSV file
-csv_file_path = 'locale_comparison/translated_locale_key_comparison_consolidated.csv'
-locale_dir_path = 'locales'  # The directory where locale JSON files will be patched
-source_locale_dir_path = '/Users/possum/Projects/tari/universe/public/locales'  # The directory where the source locale JSON files are located
-en_locale_dir_path = 'locales/en'  # Path to the English locale for reference
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Patch locale files with translations from CSV.')
+    parser.add_argument('--source-locale-path', required=True, 
+                       help='Path to the source locale directory (e.g., /path/to/project/public/locales)')
+    parser.add_argument('--target-locale-path', default='locales',
+                       help='Path to the target locale directory where patched files will be stored (default: locales)')
+    parser.add_argument('--csv-file', default='locale_comparison/translated_locale_key_comparison_consolidated.csv',
+                       help='Path to the CSV file with translations (default: locale_comparison/translated_locale_key_comparison_consolidated.csv)')
+    parser.add_argument('--output-dir', default='locale_comparison',
+                       help='Output directory for comparison files (default: locale_comparison)')
+    return parser.parse_args()
 
 def load_csv(file_path):
     """Load the CSV file and return it as a DataFrame."""
@@ -32,7 +40,7 @@ def create_directory_if_missing(directory_path):
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
 
-def copy_source_locales():
+def copy_source_locales(source_locale_dir_path, locale_dir_path):
     """Copy all locale files from the source repository to the target locale directory."""
     if os.path.exists(source_locale_dir_path):
         shutil.copytree(source_locale_dir_path, locale_dir_path, dirs_exist_ok=True)
@@ -73,7 +81,7 @@ def handle_invalid_value(value):
         return None
     return value
 
-def update_locale_json(locale, json_file, label_key, translated_value):
+def update_locale_json(locale, json_file, label_key, translated_value, locale_dir_path):
     """Update a JSON file with the new translation."""
     locale_folder_path = os.path.join(locale_dir_path, locale)
     locale_json_path = os.path.join(locale_folder_path, json_file)
@@ -88,7 +96,7 @@ def update_locale_json(locale, json_file, label_key, translated_value):
     update_nested_dict(json_data, keys, translated_value)
     save_json(locale_json_path, json_data)
 
-def ensure_all_keys_present(locale, all_en_keys):
+def ensure_all_keys_present(locale, all_en_keys, locale_dir_path):
     """Ensure that all English keys are present in the locale JSON files."""
     locale_folder_path = os.path.join(locale_dir_path, locale)
     create_directory_if_missing(locale_folder_path)
@@ -102,7 +110,7 @@ def ensure_all_keys_present(locale, all_en_keys):
                 update_nested_dict(json_data, label_key.split('.'), en_value)
         save_json(locale_json_path, json_data)
 
-def load_all_en_keys():
+def load_all_en_keys(en_locale_dir_path):
     """Load all English keys to ensure consistency across locales."""
     all_en_keys = {}
 
@@ -114,16 +122,25 @@ def load_all_en_keys():
     return all_en_keys
 
 def main():
+    # Parse command line arguments
+    args = parse_arguments()
+    
+    # Set up paths from arguments
+    source_locale_dir_path = args.source_locale_path
+    locale_dir_path = args.target_locale_path
+    csv_file_path = args.csv_file
+    en_locale_dir_path = os.path.join(locale_dir_path, 'en')
+    
     # Step 1: Copy the source locales to the target directory
-    copy_source_locales()
+    copy_source_locales(source_locale_dir_path, locale_dir_path)
 
     # Step 2: Load all English keys to use as a reference
-    all_en_keys = load_all_en_keys()
+    all_en_keys = load_all_en_keys(en_locale_dir_path)
 
     # Step 3: Ensure all locales have the necessary keys from English as a baseline
     for locale in os.listdir(locale_dir_path):
         if os.path.isdir(os.path.join(locale_dir_path, locale)) and locale != 'en':
-            ensure_all_keys_present(locale, all_en_keys)
+            ensure_all_keys_present(locale, all_en_keys, locale_dir_path)
 
     # Step 4: Load the translation CSV
     df = load_csv(csv_file_path)
@@ -137,7 +154,7 @@ def main():
 
         if pd.notna(translated_value) and translated_value.strip() != "":
             print(f"Updating {locale}/{json_file}: {label_key} -> {translated_value}")
-            update_locale_json(locale, json_file, label_key, translated_value)
+            update_locale_json(locale, json_file, label_key, translated_value, locale_dir_path)
 
 if __name__ == "__main__":
     main()
