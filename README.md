@@ -82,20 +82,22 @@ python i18n_patch_locales.py \
   --target-locale-path locales \
   --csv-file locale_comparison_wxtm/translated_locale_key_comparison_consolidated.csv
 
-# 4. QA check
+# 4. Copy to project (omit the en folder)
+After running the workflow, copy the updated locale files from the `locales` directory back to your project:
+
+```bash
+cp -r locales/* /path/to/your/project/public/locales/
+```
+
+# 5. QA check final repo
+```bash
 python i18n_qa.py \
   --en-locale-path /Users/possum/Projects/tari/wxtm-bridge/wxtm-bridge-frontend/public/locales/en \
   --base-path /Users/possum/Projects/tari/wxtm-bridge/wxtm-bridge-frontend/public/locales \
   --output-dir locale_comparison_wxtm
 ```
 
-## Final Step: Copy to Project
 
-After running the workflow, copy the updated locale files from the `locales` directory back to your project:
-
-```bash
-cp -r locales/* /path/to/your/project/public/locales/
-```
 
 ## Requirements
 
